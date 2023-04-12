@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<tests xmlns:ce="http://cloudevents.io/xmlformat/V1"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+  <!-- Note: These tests should be ported to the conformance test when that's feasible. -->
+  
+  <!-- 
+    - The last element in any test element is the one we try to decode
+    - as an XML element. All previous elements should be <extension> elements.
+    -->
+
+  <!-- Extension attribute tests -->
+  <test name="ConflictingExtensionType">
+    <extension name="ext" type="String" />
+    <ce:event specversion="1.0" >
+      <ce:id>test-id</ce:id>
+      <ce:type>test-type</ce:type>
+      <ce:source>//test-source</ce:source>
+      <ce:ext xsi:type="ce:integer">10</ce:ext>
+    </ce:event>
+  </test>
+  
+  <test name="ExtensionValueViolatesValidation">
+    <extension name="ext" type="String" validator="non-empty-string" />
+    <ce:event specversion="1.0" >
+      <ce:id>test-id</ce:id>
+      <ce:type>test-type</ce:type>
+      <ce:source>//test-source</ce:source>
+      <ce:ext xsi:type="ce:string"></ce:ext>
+    </ce:event>
+  </test>
+  
+  <!--
+   - Additional hand-written tests (that can't be easily included in this file):
+   - * Value that doesn't match the specified extension attribute type (e.g. "x" for "xs:int")
+   - * Data element with xsi:type=xs:base64Binary but with invalid base64 data
+   - * Data element with xsi:type=xs:base64Binary but with an element as well as text
+   - * Data element with xsi:type=xs:string but with an element as well as text
+   -->
+
+</tests>

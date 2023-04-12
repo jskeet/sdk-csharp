@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<tests xmlns:ce="http://cloudevents.io/xmlformat/V1"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <!-- Note: These tests should be ported to the conformance test when that's feasible. -->
+  <test name="ExtensionValueSatisfiesValidation">
+    <extension name="ext" type="String" validator="non-empty-string" />
+    <ce:event specversion="1.0">
+      <ce:id>test-id</ce:id>
+      <ce:type>test-type</ce:type>
+      <ce:source>//test</ce:source>
+      <ce:ext xsi:type="ce:string">xyz</ce:ext>
+    </ce:event>
+  </test>
+  
+  <test name="BinaryData">
+    <ce:event specversion="1.0" >
+      <ce:id>test-id</ce:id>
+      <ce:type>test-type</ce:type>
+      <ce:source>//test</ce:source>
+      <ce:data xsi:type="xs:base64Binary">AQID</ce:data>
+    </ce:event>
+  </test>
+  
+  <test name="XmlData">
+    <ce:event specversion="1.0" >
+      <ce:id>test-id</ce:id>
+      <ce:type>test-type</ce:type>
+      <ce:source>//test</ce:source>
+      <ce:data xsi:type="xs:any"><test attr="x">Text<nested /></test></ce:data>
+    </ce:event>
+  </test>
+</tests>
