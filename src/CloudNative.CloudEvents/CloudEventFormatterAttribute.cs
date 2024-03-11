@@ -4,6 +4,9 @@
 
 using CloudNative.CloudEvents.Core;
 using System;
+#if NET5_0_OR_GREATER
+using System.Diagnostics.CodeAnalysis;
+#endif
 using System.Reflection;
 
 namespace CloudNative.CloudEvents
@@ -21,6 +24,9 @@ namespace CloudNative.CloudEvents
         /// <summary>
         /// The type to use for CloudEvent formatting. Must not be null.
         /// </summary>
+#if NET5_0_OR_GREATER
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
+#endif
         public Type FormatterType { get; }
 
         /// <summary>

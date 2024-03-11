@@ -42,6 +42,8 @@
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageProjectUrl>https://cloudevents.io</PackageProjectUrl>
     <Copyright>Copyright Cloud Native Foundation</Copyright>
+   
+    <LangVersion>12.0</LangVersion>
   </PropertyGroup>
   
   <!-- Package the icon specified in the PackageIcon property -->
