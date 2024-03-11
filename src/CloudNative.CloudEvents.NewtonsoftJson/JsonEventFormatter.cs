@@ -703,7 +703,7 @@ namespace CloudNative.CloudEvents.NewtonsoftJson
         /// <inheritdoc />
         protected override void EncodeStructuredModeData(CloudEvent cloudEvent, JsonWriter writer)
         {
-            T data = (T) cloudEvent.Data;
+            T data = (T) cloudEvent.Data!;
             writer.WritePropertyName(DataPropertyName);
             Serializer.Serialize(writer, data);
         }
