@@ -1,14 +1,16 @@
-﻿// Copyright (c) Cloud Native Foundation.
+// Copyright (c) Cloud Native Foundation.
 // Licensed under the Apache 2.0 license.
 // See LICENSE file in the project root for full license information.
 
 using CloudNative.CloudEvents.Core;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net.Mime;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace CloudNative.CloudEvents.SystemTextJson
@@ -94,7 +96,8 @@ namespace CloudNative.CloudEvents.SystemTextJson
         protected const string DataPropertyName = "data";
 
         /// <summary>
-        /// The options to use when serializing objects to JSON.
+        /// The options to use when serializing objects to JSON. When <see cref="SerializerContext"/>
+        /// is non-null, that should be used instead.
         /// </summary>
         protected JsonSerializerOptions? SerializerOptions { get; }
 
@@ -104,10 +107,21 @@ namespace CloudNative.CloudEvents.SystemTextJson
         protected JsonDocumentOptions DocumentOptions { get; }
 
         /// <summary>
+        /// The serializer context to use, if available. This should be used in preference to
+        /// <see cref="SerializerOptions"/>, as it provides support for AOT scenarios.
+        /// </summary>
+        protected JsonSerializerContext? SerializerContext { get; }
+
+        private protected IJsonSerializer JsonSerializerImpl { get; }
+
+        /// <summary>
         /// Creates a JsonEventFormatter that uses the default <see cref="JsonSerializerOptions"/>
         /// and <see cref="JsonDocumentOptions"/> for serializing and parsing.
         /// </summary>
-        public JsonEventFormatter() : this(null, default)
+#if NET5_0_OR_GREATER
+        [RequiresUnreferencedCode("Use a constructor that takes a JsonSerializerContext.")]
+#endif
+        public JsonEventFormatter() : this((JsonSerializerOptions?) null, default)
         {
         }
 
@@ -117,9 +131,27 @@ namespace CloudNative.CloudEvents.SystemTextJson
         /// </summary>
         /// <param name="serializerOptions">The options to use when serializing objects to JSON. May be null.</param>
         /// <param name="documentOptions">The options to use when parsing JSON documents.</param>
+#if NET5_0_OR_GREATER
+        [RequiresUnreferencedCode("Use a constructor that takes a JsonSerializerContext.")]
+#endif
         public JsonEventFormatter(JsonSerializerOptions? serializerOptions, JsonDocumentOptions documentOptions)
         {
             SerializerOptions = serializerOptions;
+            DocumentOptions = documentOptions;
+            JsonSerializerImpl = new JsonSerializerWithoutContext(serializerOptions);
+        }
+
+
+        /// <summary>
+        /// Creates a JsonEventFormatter that uses the specified <see cref="JsonSerializerContext"/>
+        /// and <see cref="JsonDocumentOptions"/> for serializing and parsing.
+        /// </summary>
+        /// <param name="serializerContext">The serializer context to use when serializing objects to JSON. Must not be null.</param>
+        /// <param name="documentOptions">The options to use when parsing JSON documents.</param>
+        public JsonEventFormatter(JsonSerializerContext serializerContext, JsonDocumentOptions documentOptions)
+        {
+            Validation.CheckNotNull(serializerContext, nameof(serializerContext));
+            JsonSerializerImpl = new JsonSerializerWithContext(serializerContext);
             DocumentOptions = documentOptions;
         }
 
@@ -547,7 +579,7 @@ namespace CloudNative.CloudEvents.SystemTextJson
                 if (IsJsonMediaType(dataContentType.MediaType))
                 {
                     writer.WritePropertyName(DataPropertyName);
-                    JsonSerializer.Serialize(writer, cloudEvent.Data, SerializerOptions);
+                    JsonSerializerImpl.SerializeToWriter(writer, cloudEvent.Data!);
                 }
                 else if (cloudEvent.Data is string text && dataContentType.MediaType.StartsWith("text/"))
                 {
@@ -581,14 +613,9 @@ namespace CloudNative.CloudEvents.SystemTextJson
             if (IsJsonMediaType(contentType.MediaType))
             {
                 var encoding = MimeUtilities.GetEncoding(contentType);
-                if (encoding is UTF8Encoding)
-                {
-                    return JsonSerializer.SerializeToUtf8Bytes(cloudEvent.Data, SerializerOptions);
-                }
-                else
-                {
-                    return MimeUtilities.GetEncoding(contentType).GetBytes(JsonSerializer.Serialize(cloudEvent.Data, SerializerOptions));
-                }
+                return encoding is UTF8Encoding
+                    ? JsonSerializerImpl.SerializeToUtf8Bytes(cloudEvent.Data)
+                    : encoding.GetBytes(JsonSerializerImpl.SerializeToString(cloudEvent.Data));
             }
             if (contentType.MediaType.StartsWith("text/") && cloudEvent.Data is string text)
             {
@@ -653,6 +680,9 @@ namespace CloudNative.CloudEvents.SystemTextJson
         /// Creates a JsonEventFormatter that uses the default <see cref="JsonSerializerOptions"/>
         /// and <see cref="JsonDocumentOptions"/> for serializing and parsing.
         /// </summary>
+#if NET5_0_OR_GREATER
+        [RequiresUnreferencedCode("Use a constructor that takes a JsonSerializerContext.")]
+#endif
         public JsonEventFormatter()
         {
         }
@@ -663,8 +693,19 @@ namespace CloudNative.CloudEvents.SystemTextJson
         /// </summary>
         /// <param name="serializerOptions">The options to use when serializing and parsing. May be null.</param>
         /// <param name="documentOptions">The options to use when parsing JSON documents.</param>
+#if NET5_0_OR_GREATER
+        [RequiresUnreferencedCode("Use a constructor that takes a JsonSerializerContext.")]
+#endif
         public JsonEventFormatter(JsonSerializerOptions serializerOptions, JsonDocumentOptions documentOptions)
             : base(serializerOptions, documentOptions)
+        {
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="serializerContext"></param>
+        public JsonEventFormatter(JsonSerializerContext serializerContext) : base(serializerContext, documentOptions: default)
         {
         }
 
@@ -678,7 +719,7 @@ namespace CloudNative.CloudEvents.SystemTextJson
                 return Array.Empty<byte>();
             }
             T data = (T) cloudEvent.Data;
-            return JsonSerializer.SerializeToUtf8Bytes(data, SerializerOptions);
+            return JsonSerializerImpl.SerializeToUtf8Bytes(data);
         }
 
         /// <inheritdoc />
@@ -691,22 +732,22 @@ namespace CloudNative.CloudEvents.SystemTextJson
                 cloudEvent.Data = null;
                 return;
             }
-            cloudEvent.Data = JsonSerializer.Deserialize<T>(body.Span, SerializerOptions);
+            cloudEvent.Data = JsonSerializerImpl.Deserialize(body.Span, typeof(T));
         }
 
         /// <inheritdoc />
         protected override void EncodeStructuredModeData(CloudEvent cloudEvent, Utf8JsonWriter writer)
         {
-            T data = (T) cloudEvent.Data;
+            T data = (T) cloudEvent.Data!;
             writer.WritePropertyName(DataPropertyName);
-            JsonSerializer.Serialize(writer, data, SerializerOptions);
+            JsonSerializerImpl.SerializeToWriter(writer, data!);
         }
 
         /// <inheritdoc />
         protected override void DecodeStructuredModeDataProperty(JsonElement dataElement, CloudEvent cloudEvent) =>
             // Note: this is an inefficient way of doing this.
             // See https://github.com/dotnet/runtime/issues/31274 - when that's implemented, we can use the new method here.
-            cloudEvent.Data = JsonSerializer.Deserialize<T>(dataElement.GetRawText(), SerializerOptions);
+            cloudEvent.Data = JsonSerializerImpl.Deserialize(dataElement, typeof(T));
 
         // TODO: Consider decoding the base64 data as a byte array, then using DecodeBinaryModeData.
         /// <inheritdoc />

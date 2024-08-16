@@ -33,7 +33,11 @@ namespace CloudNative.CloudEvents
         /// Constructs an instance of the attribute for the specified formatter type.
         /// </summary>
         /// <param name="formatterType">The type performing the data conversions.</param>
+#if NET5_0_OR_GREATER        
+        public CloudEventFormatterAttribute([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] Type formatterType) =>
+#else
         public CloudEventFormatterAttribute(Type formatterType) =>
+#endif
             FormatterType = formatterType;
 
         /// <summary>
